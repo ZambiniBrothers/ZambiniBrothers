@@ -1,67 +1,71 @@
-# Book Auto Screenshot App
+# Book Auto Screenshot - Web Version
 
-iPhone で書籍をスキャンして、自動的にスクリーンショットを撮影し、写真ライブラリに保存するアプリケーションです。
+書籍をスキャンして、自動的にスクリーンショットを撮影し、ダウンロードするウェブアプリケーションです。iPhone のブラウザで **今すぐ動きます**！
 
 ## 機能
 
-- 📱 **自動スクショ**：ボタンをタップするだけで複数ページを自動撮影
+- 📱 **iPhone で動作**：ブラウザで開くだけで使用可能
+- 📷 **自動スクショ**：ボタンをタップするだけで複数ページを自動撮影
 - ↔️ **方向選択**：スワイプ方向（左/右）を事前に選択可能
 - 🔄 **自動終了判定**：コンテンツの変化を検知して自動終了
-- 💾 **写真ライブラリ保存**：撮影したスクショは自動的に iPhone の写真ライブラリに保存
+- 💾 **自動ダウンロード**：撮影したスクショは自動的にダウンロード
 - ✅ **完了通知**：撮影完了時にアラートで通知
 
 ## プロジェクト構成
 
 ```
 BookAutoScreenshot/
-├── BookAutoScreenshot.swift          # App entry point
-├── ContentView.swift                 # メインビュー
-├── Models/
-│   └── BookContent.swift            # ページデータとスワイプ方向定義
-├── Utilities/
-│   └── ScreenshotManager.swift       # スクショ保存機能
-├── Extensions/
-│   └── UIView+Screenshot.swift       # スクショ撮影拡張
-├── Info.plist                        # アプリ設定（フォトライブラリアクセス権限）
+├── src/
+│   ├── App.tsx                       # メインアプリケーション
+│   ├── App.css                       # スタイル
+│   ├── main.tsx                      # エントリーポイント
+│   ├── data/
+│   │   └── bookContent.ts           # ページデータ定義
+│   └── utils/
+│       └── screenshotCapture.ts     # スクショ撮影機能
+├── index.html                        # HTML テンプレート
+├── package.json                      # 依存パッケージ
+├── vite.config.ts                    # Vite 設定
+├── tsconfig.json                     # TypeScript 設定
+├── tailwind.config.js                # Tailwind CSS 設定
+├── postcss.config.js                 # PostCSS 設定
 └── README.md                         # このファイル
 ```
 
 ## セットアップ方法
 
-### 1. Xcode プロジェクト作成
+### 必須環境
+
+- Node.js 16 以上
+- npm または yarn
+
+### インストール
 
 ```bash
-cd /path/to/ZambiniBrothers
+# 依存パッケージをインストール
+npm install
 ```
 
-Xcode で新規 iOS App プロジェクトを作成：
-- **Product Name**: BookAutoScreenshot
-- **Interface**: SwiftUI
-- **Language**: Swift
-- **Minimum Deployment Target**: iOS 15.0 以上
-
-### 2. ファイルの配置
-
-上記のプロジェクト構成通りに Swift ファイルを Xcode に追加してください。
-
-### 3. Info.plist の設定
-
-Xcode では、`Info.plist` に以下の権限が自動的に設定されます：
-```
-NSPhotoLibraryAddUsageDescription: "スクリーンショットを写真ライブラリに保存するため、アクセス許可が必要です"
-```
-
-### 4. ビルドと実行
+### 開発サーバー起動
 
 ```bash
-xcodebuild build
-# または Xcode で ⌘+B でビルド
+npm run dev
 ```
 
-実行：
+ブラウザで `http://localhost:5173` を開いてください。
+
+### ビルド
+
 ```bash
-xcodebuild -scheme BookAutoScreenshot -configuration Debug -simulator
-# または Xcode で ⌘+R で実行
+npm run build
+```
+
+ビルド結果は `dist/` ディレクトリに出力されます。
+
+### プレビュー
+
+```bash
+npm run preview
 ```
 
 ## 使い方
@@ -77,6 +81,10 @@ xcodebuild -scheme BookAutoScreenshot -configuration Debug -simulator
 3. **自動終了**
    - コンテンツが変わらなくなると、アプリが自動的に終了
    - 完了アラートが表示され、撮影枚数が表示されます
+
+4. **ダウンロード確認**
+   - 撮影したスクショは `book-screenshot-001.png` 形式で自動ダウンロード
+   - iPhone では「ファイル」アプリまたは「写真」アプリで確認できます
 
 ## 動作フロー
 
@@ -94,19 +102,54 @@ xcodebuild -scheme BookAutoScreenshot -configuration Debug -simulator
    └─ NO → 手順2に戻る
 ```
 
-## 技術仕様
+## 技術スタック
 
-- **言語**: Swift 5.9+
-- **フレームワーク**: SwiftUI, Photos
-- **最小 iOS バージョン**: iOS 15.0
-- **対応デバイス**: iPhone (iPad は未テスト)
+- **フロントエンド**: React 18 + TypeScript
+- **ビルドツール**: Vite
+- **スタイリング**: Tailwind CSS
+- **スクショライブラリ**: html2canvas
+- **ランタイム**: Node.js 16+
 
-## 権限設定
+## iPhone で使用する
 
-このアプリは以下の権限が必要です：
-- **NSPhotoLibraryAddUsageDescription**: 写真ライブラリへの追加アクセス
+### 1. ローカルネットワークでアクセス
 
-初回起動時にユーザーに許可を求めるアラートが表示されます。
+開発マシンの IP アドレスを取得：
+
+```bash
+# Mac/Linux
+ifconfig | grep inet
+
+# Windows
+ipconfig
+```
+
+iPhone の Safari で `http://<your-ip>:5173` にアクセス。
+
+### 2. 本番環境にデプロイ
+
+```bash
+npm run build
+```
+
+`dist/` フォルダを Vercel、Netlify などでデプロイして、iPhone からアクセスできます。
+
+## サンプルデータについて
+
+`src/data/bookContent.ts` には、テスト用のサンプル本データが含まれています。
+実際の本をスキャンするには、`bookPages` 配列を実際のテキストに置き換えてください。
+
+```typescript
+export const bookPages: BookContent[] = [
+  {
+    content: "ページ1のテキスト",
+  },
+  {
+    content: "ページ2のテキスト",
+  },
+  // ...
+];
+```
 
 ## 今後の拡張予定
 
@@ -115,33 +158,24 @@ xcodebuild -scheme BookAutoScreenshot -configuration Debug -simulator
 - 🌍 **複数言語対応**：日本語以外の言語サポート
 - 📄 **PDF 出力**：撮影したスクショから PDF を生成
 - ⚙️ **カスタマイズ機能**：撮影間隔やページ判定ロジックの調整
+- 📤 **クラウド保存**：Google Drive, Dropbox などとの連携
 
 ## トラブルシューティング
 
 ### スクショが保存されない
-- **解決策**: 「写真」アプリへのアクセス許可を確認してください
-  - 設定 > 自動スクショ > 写真 > 「追加可能」に設定
+
+- ブラウザのコンソール（F12）でエラーを確認
+- html2canvas の CORS エラーが出ている場合は、要素の書き込みを確認
 
 ### ページが自動で進まない
-- **解決策**: ContentView.swift のタイミング値を調整
-  - `DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)` の 0.5 を増やす
 
-### コンテンツ変更検知がうまくいかない
-- **解決策**: BookContent.swift でサンプルデータを確認
-  - 各ページのコンテンツが異なることを確認
+- `src/App.tsx` のタイミング値を調整
+- `setTimeout` の値を増やしてみてください
 
-## サンプルデータについて
+### iPhone で表示がおかしい
 
-`Models/BookContent.swift` には、テスト用のサンプル本データが含まれています。
-実際の本をスキャンするには、BookContent.samplePages を実際のテキストに置き換えてください。
-
-```swift
-static let samplePages = [
-    BookContent(content: "ページ1のテキスト"),
-    BookContent(content: "ページ2のテキスト"),
-    // ...
-]
-```
+- ブラウザをリロード（Ctrl+R または Cmd+R）
+- キャッシュをクリア
 
 ## ライセンス
 
