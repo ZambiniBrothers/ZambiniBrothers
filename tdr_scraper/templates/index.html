@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TDR Wait Time Dashboard - モンスターズ・インク</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>TDR Wait Time Dashboard</h1>
+                    <p class="header-subtitle">東京ディズニーランド「モンスターズ・インク『ライド＆ゴーシーク！』」</p>
+                </div>
+                <div class="header-info">
+                    <div class="last-update">
+                        <span class="label">最終更新:</span>
+                        <span id="lastUpdate">--:--:--</span>
+                    </div>
+                    <div class="auto-refresh">
+                        <span class="label">自動更新:</span>
+                        <span id="refreshStatus">準備中...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Error Message -->
+            <div id="errorContainer" class="error-container hidden">
+                <div class="error-message">
+                    <span class="error-icon">⚠</span>
+                    <span id="errorText">エラーが発生しました</span>
+                </div>
+            </div>
+
+            <!-- Current Values -->
+            <section class="current-values">
+                <div class="value-card">
+                    <div class="value-label">現在の待ち時間</div>
+                    <div class="value-display">
+                        <span id="currentWaitTime" class="value-number">--</span>
+                        <span class="value-unit">分</span>
+                    </div>
+                    <div class="value-timestamp" id="currentWaitTimeTime">--:--:--</div>
+                </div>
+
+                <div class="value-card">
+                    <div class="value-label">推定Qライン人数</div>
+                    <div class="value-display">
+                        <span id="currentQueueSize" class="value-number">--</span>
+                        <span class="value-unit">人</span>
+                    </div>
+                    <div class="value-timestamp" id="currentQueueTime">--:--:--</div>
+                </div>
+
+                <div class="value-card">
+                    <div class="value-label">平均待ち時間（1時間）</div>
+                    <div class="value-display">
+                        <span id="avgWaitTime" class="value-number">--</span>
+                        <span class="value-unit">分</span>
+                    </div>
+                </div>
+
+                <div class="value-card">
+                    <div class="value-label">平均Qライン人数（1時間）</div>
+                    <div class="value-display">
+                        <span id="avgQueueSize" class="value-number">--</span>
+                        <span class="value-unit">人</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Statistics -->
+            <section class="statistics">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">最大待ち時間</span>
+                        <span class="stat-value" id="maxWaitTime">--</span>
+                        <span class="stat-unit">分</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最小待ち時間</span>
+                        <span class="stat-value" id="minWaitTime">--</span>
+                        <span class="stat-unit">分</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最大Qライン</span>
+                        <span class="stat-value" id="maxQueue">--</span>
+                        <span class="stat-unit">人</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最小Qライン</span>
+                        <span class="stat-value" id="minQueue">--</span>
+                        <span class="stat-unit">人</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts -->
+            <section class="charts">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h2>待ち時間推移（過去1時間）</h2>
+                        <span class="data-points-count" id="waitTimeDataCount">データなし</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="waitTimeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h2>推定Qライン人数推移（過去1時間）</h2>
+                        <span class="data-points-count" id="queueDataCount">データなし</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="queueChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- No Data Message -->
+            <div id="noDataContainer" class="no-data-container hidden">
+                <div class="no-data-message">
+                    <span class="no-data-icon">📊</span>
+                    <h3>データをお待ちしています</h3>
+                    <p>スクレーパーから最初のデータが収集されるまでお待ちください。</p>
+                    <p class="small-text">通常、5分以内にデータが表示されます。</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Tokyo Disneyland Wait Time Dashboard - Auto-refreshes every 5 minutes</p>
+            <p>Latest update: <span id="footerUpdate">--:--:--</span></p>
+        </footer>
+    </div>
+
+    <!-- Chart instances (global scope) -->
+    <script>
+        let waitTimeChart = null;
+        let queueChart = null;
+
+        // Colors
+        const CHART_COLORS = {
+            waitTime: 'rgb(255, 107, 107)',
+            queue: 'rgb(59, 130, 246)',
+            gridLine: 'rgba(200, 200, 200, 0.1)',
+            text: 'rgb(100, 100, 100)',
+        };
+
+        // Format timestamp to HH:MM:SS
+        function formatTime(dateString) {
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            } catch (e) {
+                return '--:--:--';
+            }
+        }
+
+        // Format timestamp to HH:MM
+        function formatTimeShort(dateString) {
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return '--:--';
+            }
+        }
+
+        // Initialize charts with empty data
+        function initializeCharts() {
+            const ctx1 = document.getElementById('waitTimeChart').getContext('2d');
+            waitTimeChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '待ち時間 (分)',
+                        data: [],
+                        borderColor: CHART_COLORS.waitTime,
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: CHART_COLORS.waitTime,
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: CHART_COLORS.text, font: { size: 14 } },
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 12 },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y + ' 分';
+                                }
+                            }
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '待ち時間 (分)' },
+                            grid: { color: CHART_COLORS.gridLine },
+                            ticks: { color: CHART_COLORS.text },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: CHART_COLORS.text },
+                        },
+                    },
+                },
+            });
+
+            const ctx2 = document.getElementById('queueChart').getContext('2d');
+            queueChart = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '推定Qライン人数',
+                        data: [],
+                        borderColor: CHART_COLORS.queue,
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: CHART_COLORS.queue,
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: CHART_COLORS.text, font: { size: 14 } },
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 12 },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y + ' 人';
+                                }
+                            }
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '推定人数' },
+                            grid: { color: CHART_COLORS.gridLine },
+                            ticks: { color: CHART_COLORS.text },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: CHART_COLORS.text },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Update dashboard with data
+        function updateDashboard(response) {
+            // Hide error and no-data messages
+            document.getElementById('errorContainer').classList.add('hidden');
+            document.getElementById('noDataContainer').classList.add('hidden');
+
+            if (!response.success) {
+                // Show error
+                document.getElementById('errorText').textContent = response.error || 'データ取得エラー';
+                document.getElementById('errorContainer').classList.remove('hidden');
+                document.getElementById('noDataContainer').classList.remove('hidden');
+                return;
+            }
+
+            const data = response.data || [];
+            const latest = response.latest;
+            const stats = response.stats || {};
+
+            // Update current values
+            if (latest) {
+                document.getElementById('currentWaitTime').textContent = latest.wait_time;
+                document.getElementById('currentQueueSize').textContent = latest.estimated_queue;
+                const latestTime = formatTime(latest.timestamp);
+                document.getElementById('currentWaitTimeTime').textContent = latestTime;
+                document.getElementById('currentQueueTime').textContent = latestTime;
+            } else {
+                document.getElementById('currentWaitTime').textContent = '--';
+                document.getElementById('currentQueueSize').textContent = '--';
+                document.getElementById('currentWaitTimeTime').textContent = '--:--:--';
+                document.getElementById('currentQueueTime').textContent = '--:--:--';
+            }
+
+            // Update statistics
+            document.getElementById('avgWaitTime').textContent = stats.avg_wait_time || '--';
+            document.getElementById('avgQueueSize').textContent = stats.avg_queue || '--';
+            document.getElementById('maxWaitTime').textContent = stats.max_wait_time || '--';
+            document.getElementById('minWaitTime').textContent = stats.min_wait_time || '--';
+            document.getElementById('maxQueue').textContent = stats.max_queue || '--';
+            document.getElementById('minQueue').textContent = stats.min_queue || '--';
+
+            // Update charts
+            if (data.length > 0) {
+                const labels = data.map(d => formatTimeShort(d.timestamp));
+                const waitTimes = data.map(d => d.wait_time);
+                const queues = data.map(d => d.estimated_queue);
+
+                // Update wait time chart
+                waitTimeChart.data.labels = labels;
+                waitTimeChart.data.datasets[0].data = waitTimes;
+                const maxWait = Math.max(...waitTimes);
+                waitTimeChart.options.scales.y.max = maxWait + 20;
+                waitTimeChart.update('none');
+
+                // Update queue chart
+                queueChart.data.labels = labels;
+                queueChart.data.datasets[0].data = queues;
+                const maxQueue = Math.max(...queues);
+                queueChart.options.scales.y.max = maxQueue + 500;
+                queueChart.update('none');
+
+                document.getElementById('waitTimeDataCount').textContent = `${data.length}個のデータポイント`;
+                document.getElementById('queueDataCount').textContent = `${data.length}個のデータポイント`;
+            } else {
+                // No data
+                waitTimeChart.data.labels = [];
+                waitTimeChart.data.datasets[0].data = [];
+                waitTimeChart.update('none');
+
+                queueChart.data.labels = [];
+                queueChart.data.datasets[0].data = [];
+                queueChart.update('none');
+
+                document.getElementById('waitTimeDataCount').textContent = 'データなし';
+                document.getElementById('queueDataCount').textContent = 'データなし';
+                document.getElementById('noDataContainer').classList.remove('hidden');
+            }
+
+            // Update last update time
+            const now = new Date();
+            const updateTime = formatTime(now.toISOString());
+            document.getElementById('lastUpdate').textContent = updateTime;
+            document.getElementById('footerUpdate').textContent = updateTime;
+        }
+
+        // Fetch data from API
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                updateDashboard(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('errorText').textContent = `取得エラー: ${error.message}`;
+                document.getElementById('errorContainer').classList.remove('hidden');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            fetchData();
+
+            // Set up auto-refresh (5 minutes = 300000 ms)
+            const refreshInterval = 5 * 60 * 1000;
+            let refreshCount = 0;
+
+            setInterval(function() {
+                refreshCount++;
+                const remainingSeconds = 300 - (refreshCount % 300);
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                document.getElementById('refreshStatus').textContent =
+                    `次回: ${minutes}分${seconds}秒後`;
+
+                if (refreshCount % 300 === 0) {
+                    console.log('Auto-refreshing data...');
+                    fetchData();
+                    refreshCount = 0;
+                    document.getElementById('refreshStatus').textContent = '更新完了';
+                }
+            }, 1000);
+
+            console.log('Dashboard initialized. Auto-refresh: every 5 minutes');
+        });
+
+        // Manual refresh on F5
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F5') {
+                e.preventDefault();
+                console.log('Manual refresh triggered');
+                fetchData();
+            }
+        });
+    </script>
+</body>
+</html>
