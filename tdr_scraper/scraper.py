@@ -116,27 +116,121 @@ class TDRScraper:
         """
         Extract wait time from page using multiple strategies for resilience.
         Includes validation to ensure wait time is in 5-minute increments.
+        Disney only displays wait times in 5-minute increments (5, 10, 15, 20, ...).
         """
         selectors = CONFIG["wait_time_selectors"]
+        debug_attempts = []
 
         for selector_name, selector in selectors.items():
             try:
-                element = await page.query_selector(selector)
-                if element:
-                    text = await element.text_content()
-                    if text:
-                        minutes = self._parse_wait_time(text)
-                        if minutes is not None:
-                            # Validate that minutes is a 5-minute increment (5, 10, 15, 20, ...)
-                            if self._is_valid_wait_time(minutes):
-                                logger.info(f"Extracted via {selector_name}: {minutes} min")
-                                return minutes
-                            else:
-                                logger.debug(f"Selector '{selector_name}' returned invalid time: {minutes} min (not 5-min increment)")
-            except Exception as e:
-                logger.debug(f"Selector '{selector_name}' failed: {e}")
+                # For the fallback strategy, we need special handling
+                if selector == "JAVASCRIPT_EVAL":
+                    logger.debug(f"Using fallback strategy: {selector_name}")
+                    wait_time = await self._extract_via_fallback(page)
+                    if wait_time is not None:
+                        logger.info(f"✓ Successfully fetched wait time via {selector_name}: {wait_time} min")
+                        return wait_time
+                    debug_attempts.append(f"{selector_name}: no valid time found")
+                    continue
 
-        logger.warning("Could not find valid wait time using any selector strategy")
+                # Standard CSS selector query
+                elements = await page.query_selector_all(selector)
+                if not elements:
+                    debug_attempts.append(f"{selector_name}: no elements found")
+                    logger.debug(f"[{selector_name}] No elements found with selector")
+                    continue
+
+                # Check each found element
+                for elem_index, element in enumerate(elements[:3]):  # Check first 3 matches
+                    text = await element.text_content()
+                    if not text:
+                        continue
+
+                    minutes = self._parse_wait_time(text)
+                    if minutes is not None:
+                        # Validate that minutes is a 5-minute increment
+                        if self._is_valid_wait_time(minutes):
+                            logger.info(f"✓ Successfully fetched wait time via {selector_name}: {minutes} min")
+                            return minutes
+                        else:
+                            debug_attempts.append(
+                                f"{selector_name}[{elem_index}]: invalid time {minutes}min "
+                                f"(not 5-minute increment)"
+                            )
+                            logger.debug(
+                                f"[{selector_name}] Element {elem_index} has invalid time: "
+                                f"{minutes} min (not a 5-minute increment)"
+                            )
+
+            except Exception as e:
+                logger.debug(f"[{selector_name}] Exception: {str(e)[:100]}")
+                debug_attempts.append(f"{selector_name}: error - {str(e)[:50]}")
+
+        # Log debugging information
+        logger.warning("✗ Could not find valid wait time using any selector strategy")
+        logger.debug(f"Attempts: {debug_attempts[:3]}")  # Show first 3 attempts for debugging
+        return None
+
+    async def _extract_via_fallback(self, page: Page) -> Optional[int]:
+        """
+        Fallback strategy: scan all elements for "XX分" pattern.
+        This exhaustively searches for any element containing a valid wait time.
+        """
+        try:
+            script = """
+            () => {
+                const results = [];
+                const walker = document.createTreeWalker(
+                    document.body,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+
+                let node;
+                while (node = walker.nextNode()) {
+                    const text = node.textContent.trim();
+                    // Match pattern like "45分" or "45 分"
+                    const match = text.match(/\\b(\\d+)\\s*分\\b/);
+                    if (match) {
+                        const minutes = parseInt(match[1]);
+                        // Prefer valid wait times (multiples of 5)
+                        results.push({
+                            text: text.substring(0, 50),
+                            minutes: minutes,
+                            isValid: minutes % 5 === 0 && minutes > 0,
+                            parent: node.parentElement ? node.parentElement.className : 'unknown'
+                        });
+                    }
+                }
+
+                // Sort by validity and return top candidates
+                results.sort((a, b) => {
+                    if (a.isValid && !b.isValid) return -1;
+                    if (!a.isValid && b.isValid) return 1;
+                    return b.minutes - a.minutes;
+                });
+
+                return results.slice(0, 5);  // Return top 5 candidates
+            }
+            """
+            candidates = await page.evaluate(script)
+            logger.debug(f"Fallback found {len(candidates)} candidates: {candidates}")
+
+            if candidates:
+                # Prefer valid wait times first
+                for candidate in candidates:
+                    if candidate["isValid"]:
+                        logger.debug(f"Fallback: Using valid time {candidate['minutes']} from '{candidate['text']}'")
+                        return candidate["minutes"]
+
+                # If no valid time found, still return the first one (it might be correct)
+                logger.warning(f"Fallback: No valid 5-min increment found, using {candidates[0]['minutes']}")
+                return candidates[0]["minutes"]
+
+        except Exception as e:
+            logger.debug(f"Fallback strategy failed: {e}")
+
         return None
 
     def _is_valid_wait_time(self, minutes: int) -> bool:
