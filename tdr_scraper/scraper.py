@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-TDR Wait Time Scraper for Monsters, Inc. Ride & Go Seek!
+Tokyo Disneyland - Monsters, Inc. Ride & Go Seek! Wait Time Scraper
+東京ディズニーランド「モンスターズ・インク『ライド＆ゴーシーク！』」待ち時間自動取得エージェント
+
 Periodically fetches wait time data and calculates estimated queue line.
+5分ごとに待ち時間を自動取得し、推定Qライン人数を計算・記録します。
+
+Vehicle Specifications for Queue Calculation:
+- Dispatch Interval: 30 seconds
+- Capacity per Dispatch: 12 people (6 per car × 2 cars connected)
+- People per Minute: 24 people (12 × 2 dispatches/min)
+- Calculation: Wait Time (minutes) × 24 = Estimated Queue People
 """
 
 import asyncio
@@ -22,9 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 class TDRScraper:
-    """Scraper for Tokyo Disney Resort wait times."""
+    """
+    Scraper for Tokyo Disneyland's Monsters, Inc. Ride & Go Seek!
+    東京ディズニーランド「モンスターズ・インク『ライド＆ゴーシーク！』」用スクレーパー
+    """
 
-    RIDE_NAME = "モンスターズ・インク\"ライド＆ゴーシーク！\""
+    # Target Attraction
+    LOCATION = "Tokyo Disneyland (東京ディズニーランド)"
+    RIDE_NAME = "Monsters, Inc. Ride & Go Seek!"
+    RIDE_NAME_JP = "モンスターズ・インク『ライド＆ゴーシーク！』"
     MAX_RETRIES = 3
     RETRY_DELAY = 2
 
@@ -191,9 +206,12 @@ class TDRScraper:
 async def main():
     """Main entry point."""
     setup_logging()
-    logger.info("=" * 60)
-    logger.info("TDR Wait Time Scraper Started")
-    logger.info("=" * 60)
+    logger.info("=" * 70)
+    logger.info("Tokyo Disneyland - Monsters, Inc. Ride & Go Seek! Wait Time Scraper")
+    logger.info("東京ディズニーランド「モンスターズ・インク『ライド＆ゴーシーク！』」")
+    logger.info("=" * 70)
+    logger.info(f"Target: {TDRScraper.LOCATION} / {TDRScraper.RIDE_NAME_JP}")
+    logger.info(f"Execution Interval: 5 minutes / 車両定員: 12名（6人乗り×2台）")
 
     scraper = TDRScraper(headless=True)
     await scraper.init_browser()

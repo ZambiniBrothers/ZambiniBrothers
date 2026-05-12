@@ -1,9 +1,26 @@
 """
 Configuration for TDR Wait Time Scraper.
-Centralized settings for easy maintenance and updates.
+Tokyo Disneyland - Monsters, Inc. Ride & Go Seek (モンスターズ・インク「ライド＆ゴーシーク！」)
+
+This configuration is specifically designed for:
+- Location: 東京ディズニーランド (Tokyo Disneyland)
+- Attraction: モンスターズ・インク「ライド＆ゴーシーク！」
+- Vehicle Capacity: 12 people per dispatch (6 per car × 2 cars connected)
+- Dispatch Interval: 30 seconds
+
+All settings and calculations are calibrated for this specific attraction.
+Do NOT use this scraper for other attractions without recalibrating parameters.
 """
 
 CONFIG = {
+    # ============================================================
+    # TARGET ATTRACTION (対象アトラクション)
+    # ============================================================
+    # Location: Tokyo Disneyland (東京ディズニーランド)
+    # Attraction: Monsters, Inc. Ride & Go Seek
+    #           モンスターズ・インク「ライド＆ゴーシーク！」
+    # ============================================================
+
     # Scraping settings
     "tdr_url": "https://www.tokyodisneyresort.jp/",
     "interval_seconds": 300,  # 5 minutes
