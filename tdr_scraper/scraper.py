@@ -115,6 +115,7 @@ class TDRScraper:
     async def _extract_wait_time(self, page: Page) -> Optional[int]:
         """
         Extract wait time from page using multiple strategies for resilience.
+        Includes validation to ensure wait time is in 5-minute increments.
         """
         selectors = CONFIG["wait_time_selectors"]
 
@@ -126,13 +127,33 @@ class TDRScraper:
                     if text:
                         minutes = self._parse_wait_time(text)
                         if minutes is not None:
-                            logger.info(f"Extracted via {selector_name}: {minutes} min")
-                            return minutes
+                            # Validate that minutes is a 5-minute increment (5, 10, 15, 20, ...)
+                            if self._is_valid_wait_time(minutes):
+                                logger.info(f"Extracted via {selector_name}: {minutes} min")
+                                return minutes
+                            else:
+                                logger.debug(f"Selector '{selector_name}' returned invalid time: {minutes} min (not 5-min increment)")
             except Exception as e:
                 logger.debug(f"Selector '{selector_name}' failed: {e}")
 
-        logger.warning("Could not find wait time using any selector strategy")
+        logger.warning("Could not find valid wait time using any selector strategy")
         return None
+
+    def _is_valid_wait_time(self, minutes: int) -> bool:
+        """
+        Validate that wait time is in valid 5-minute increments.
+        Disney displays wait times in 5-minute increments only: 5, 10, 15, 20, ...
+
+        Args:
+            minutes: The wait time in minutes
+
+        Returns:
+            True if valid (multiple of 5), False otherwise
+        """
+        # Must be a positive multiple of 5
+        # Valid: 5, 10, 15, 20, 25, 30, ...
+        # Invalid: 1, 3, 7, 29, 43, etc.
+        return minutes > 0 and minutes % 5 == 0
 
     def _parse_wait_time(self, text: str) -> Optional[int]:
         """
@@ -142,6 +163,9 @@ class TDRScraper:
         import re
 
         text = text.strip()
+
+        # Remove extra whitespace/newlines
+        text = ' '.join(text.split())
 
         patterns = [
             r"(\d+)\s*分",  # Japanese format: "45分"
@@ -153,7 +177,9 @@ class TDRScraper:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 try:
-                    return int(match.group(1))
+                    parsed_value = int(match.group(1))
+                    logger.debug(f"Parsed '{text}' -> {parsed_value}")
+                    return parsed_value
                 except (ValueError, IndexError):
                     continue
 

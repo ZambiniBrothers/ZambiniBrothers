@@ -22,27 +22,39 @@ CONFIG = {
     # ============================================================
 
     # Scraping settings
-    "tdr_url": "https://www.tokyodisneyresort.jp/",
+    # Updated to correct attraction detail page URL
+    "tdr_url": "https://www.tokyodisneyresort.jp/tdl/attraction/detail/189/",
     "interval_seconds": 300,  # 5 minutes
     "page_timeout": 15000,  # 15 seconds in milliseconds
 
     # Wait time extraction selectors
     # Multiple selectors for resilience against HTML structure changes
+    # NOTE: These selectors are tried in order until one returns a valid 5-minute increment
     "wait_time_selectors": {
-        # Strategy 1: Official TDR app/site - look for ride-specific wait time element
-        "tdr_official_primary": "[data-ride='monsters-inc-ride-go-seek'] [class*='wait']",
-        "tdr_official_secondary": "[aria-label*='モンスターズ'] [class*='time']",
+        # Strategy 1: TDR Official Detail Page - header/info section for Monsters Inc
+        # Look for the main wait time display in the attraction header
+        "tdr_detail_header_wait": "div[class*='attraction-header'] span[class*='wait-time'], div[class*='info'] span[class*='time']",
+        "tdr_monsters_inc_wait": "div[class*='monsters'] span[class*='wait'], span[data-attraction='monsters-inc']",
 
-        # Strategy 2: Common wait time patterns
-        "wait_generic_class": ".wait-time, .waitTime, [class*='wait-time']",
-        "wait_generic_span": "span[class*='wait']:not(.hidden)",
+        # Strategy 2: Common TDR attraction info patterns
+        # TDR typically displays wait time in a dedicated info box with "待ち時間" or similar label
+        "tdr_attraction_info_wait": "div[class*='attraction-info'] span, div[class*='attract-status'] span",
+        "tdr_wait_time_box": "div.wait-time-box span, div[class*='waitTimeBox'] span, div[class*='wait_time'] span",
 
-        # Strategy 3: Table/list based selectors (if data in table format)
-        "table_cell_with_ride_name": "td:has-text('モンスターズ・インク') ~ td[class*='wait']",
-        "table_row_wait_column": "tr:has-text('モンスターズ・インク') td:nth-child(3)",
+        # Strategy 3: Direct number + "分" pattern (works across most Japanese sites)
+        # Looks for the first clear "N分" pattern that matches a 5-minute increment
+        "japanese_minutes_main": "span[class*='number'] ~ span:contains('分'), span[class*='value']:contains('分')",
+        "minutes_with_number": "span:contains('分') > span, span > span:contains('分')",
 
-        # Strategy 4: Fallback - API response or data attributes
-        "data_attribute": "[data-waittime], [data-wait-minutes]",
+        # Strategy 4: Status/info displays on attraction detail pages
+        "status_info_wait": "div[class*='status'] span, p[class*='wait'] span, li[class*='wait'] span",
+        "info_panel_wait": "div[class*='info-panel'] span, section[class*='wait'] span, article[class*='wait'] span",
+
+        # Strategy 5: Data attributes and ARIA labels
+        "data_attribute_wait": "[data-waittime], [data-wait-minutes], [data-minutes], [aria-label*='分']",
+
+        # Strategy 6: Fallback - generic patterns
+        "generic_patterns": "span[class*='wait'], .wait-minutes, .minutes, .time-display",
     },
 
     # Browser settings
