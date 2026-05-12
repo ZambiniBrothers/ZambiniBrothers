@@ -173,6 +173,16 @@ body {
     border-left-color: #f59e0b;
 }
 
+.value-card.highlight {
+    background: linear-gradient(135deg, #ff6b6b15 0%, #ff6b6b10 100%);
+    border-left: 4px solid #ff6b6b;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
+}
+
+.value-card.highlight .value-number {
+    color: #ff6b6b;
+}
+
 .value-label {
     font-size: 12px;
     color: #666;

@@ -17,6 +17,8 @@ from typing import Dict, List, Tuple, Optional
 
 from flask import Flask, render_template, jsonify
 
+from calculator import QueueCalculator
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -194,6 +196,55 @@ def get_data():
             "latest": None,
             "stats": {},
             "last_update": None,
+            "error": f"Server error: {str(e)}",
+        }), 500
+
+
+@app.route("/api/daily-stats")
+def get_daily_stats():
+    """
+    API endpoint to fetch daily visitor statistics.
+    Calculates total daily visitors based on wait time progression.
+
+    Returns: {
+        "success": bool,
+        "daily_visitors": int,
+        "calculation_details": {...},
+        "data_points_count": int,
+        "error": str (if success=False)
+    }
+    """
+    try:
+        all_data = read_csv_data()
+
+        if not all_data:
+            return jsonify({
+                "success": False,
+                "daily_visitors": 0,
+                "calculation_details": {},
+                "data_points_count": 0,
+                "error": "No data available",
+            })
+
+        wait_times = [record["wait_time"] for record in all_data]
+        calculator = QueueCalculator()
+        result = calculator.calculate_daily_visitors(wait_times)
+
+        return jsonify({
+            "success": result.get("calculation_valid", False),
+            "daily_visitors": result.get("total_visitors", 0),
+            "calculation_details": result,
+            "data_points_count": len(all_data),
+            "error": None if result.get("calculation_valid") else result.get("message"),
+        })
+
+    except Exception as e:
+        logger.error(f"Error in /api/daily-stats: {e}")
+        return jsonify({
+            "success": False,
+            "daily_visitors": 0,
+            "calculation_details": {},
+            "data_points_count": 0,
             "error": f"Server error: {str(e)}",
         }), 500
 
